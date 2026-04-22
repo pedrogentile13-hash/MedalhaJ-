@@ -5,7 +5,10 @@ import { useStore } from '@/store/useStore';
 import {
   isFirebaseConfigured,
   onAuthChange,
-  signInWithGoogle as fbSignIn,
+  signInWithEmail,
+  registerWithEmail,
+  sendPasswordReset,
+  signInWithGoogle as fbSignInWithGoogle,
   signOut as fbSignOut,
 } from '@/services/firebase';
 
@@ -21,18 +24,36 @@ export function useAuth() {
     return () => unsubscribe?.();
   }, [setUser]);
 
-  const login = async () => {
+  const loginWithEmail = async (email: string, password: string) => {
+    const u = await signInWithEmail(email, password);
+    setUser(u);
+    return u;
+  };
+
+  const register = async (email: string, password: string, displayName: string) => {
+    const u = await registerWithEmail(email, password, displayName);
+    setUser(u);
+    return u;
+  };
+
+  const resetPassword = async (email: string) => {
+    await sendPasswordReset(email);
+  };
+
+  const loginWithGoogle = async () => {
     if (!isFirebaseConfigured()) {
-      setUser({
+      const mockUser = {
         uid: 'local-user',
         email: 'local@olimpico.app',
         displayName: 'Atleta Local',
         photoURL: null,
-      });
-      return;
+      };
+      setUser(mockUser);
+      return mockUser;
     }
-    const u = await fbSignIn();
+    const u = await fbSignInWithGoogle();
     if (u) setUser(u);
+    return u;
   };
 
   const logout = async () => {
@@ -40,5 +61,13 @@ export function useAuth() {
     setUser(null);
   };
 
-  return { user, login, logout, isFirebaseEnabled: isFirebaseConfigured() };
+  return {
+    user,
+    loginWithEmail,
+    register,
+    resetPassword,
+    loginWithGoogle,
+    logout,
+    isFirebaseEnabled: isFirebaseConfigured(),
+  };
 }

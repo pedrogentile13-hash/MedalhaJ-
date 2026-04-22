@@ -35,16 +35,57 @@ export async function initFirebase() {
   firebaseAuth = getAuth(firebaseApp);
 }
 
+function mapUser(u: any): User {
+  return {
+    uid: u.uid,
+    email: u.email,
+    displayName: u.displayName,
+    photoURL: u.photoURL,
+  };
+}
+
+// ─── Auth: Email/Senha ────────────────────────────────────────────────────────
+
+export async function signInWithEmail(email: string, password: string): Promise<User> {
+  await initFirebase();
+  if (!firebaseAuth) throw new Error('Firebase não configurado');
+  const { signInWithEmailAndPassword } = await import('firebase/auth');
+  const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
+  return mapUser(result.user);
+}
+
+export async function registerWithEmail(
+  email: string,
+  password: string,
+  displayName: string
+): Promise<User> {
+  await initFirebase();
+  if (!firebaseAuth) throw new Error('Firebase não configurado');
+  const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
+  const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+  await updateProfile(result.user, { displayName });
+  return mapUser({ ...result.user, displayName });
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  await initFirebase();
+  if (!firebaseAuth) throw new Error('Firebase não configurado');
+  const { sendPasswordResetEmail } = await import('firebase/auth');
+  await sendPasswordResetEmail(firebaseAuth, email);
+}
+
+// ─── Auth: Google ─────────────────────────────────────────────────────────────
+
 export async function signInWithGoogle(): Promise<User | null> {
   await initFirebase();
   if (!firebaseAuth) return null;
-
   const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
   const provider = new GoogleAuthProvider();
   const result = await signInWithPopup(firebaseAuth, provider);
-  const u = result.user;
-  return { uid: u.uid, email: u.email, displayName: u.displayName, photoURL: u.photoURL };
+  return mapUser(result.user);
 }
+
+// ─── Auth: Geral ──────────────────────────────────────────────────────────────
 
 export async function signOut(): Promise<void> {
   await initFirebase();
@@ -61,13 +102,11 @@ export async function onAuthChange(callback: (user: User | null) => void): Promi
   }
   const { onAuthStateChanged } = await import('firebase/auth');
   return onAuthStateChanged(firebaseAuth, (u) => {
-    if (u) {
-      callback({ uid: u.uid, email: u.email, displayName: u.displayName, photoURL: u.photoURL });
-    } else {
-      callback(null);
-    }
+    callback(u ? mapUser(u) : null);
   });
 }
+
+// ─── Firestore: Olimpíadas ────────────────────────────────────────────────────
 
 export async function saveOlympiad(olympiad: Olympiad): Promise<void> {
   await initFirebase();
@@ -112,6 +151,8 @@ export async function subscribeToOlympiads(
     callback(snapshot.docs.map((d: any) => d.data() as Olympiad));
   });
 }
+
+// ─── Firestore: Eventos ───────────────────────────────────────────────────────
 
 export async function saveEvent(event: CalendarEvent): Promise<void> {
   await initFirebase();

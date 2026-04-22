@@ -13,7 +13,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ title }: NavbarProps) {
-  const { user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -59,10 +59,13 @@ export function Navbar({ title }: NavbarProps) {
               </Button>
             </div>
           ) : (
-            <Button variant="primary" size="sm" onClick={login}>
+            <a
+              href="/"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 hover:opacity-90 text-white text-sm font-medium transition-opacity"
+            >
               <LogIn className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Entrar</span>
-            </Button>
+            </a>
           )}
         </div>
       </header>
