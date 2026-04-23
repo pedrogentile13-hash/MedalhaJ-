@@ -9,7 +9,7 @@ import {
   OlympiadFormData,
   MedalType,
 } from '@/types';
-import { calculateMedal } from '@/utils/medals';
+import { calculateMedal, calculateClassified } from '@/utils/medals';
 import {
   calculateXP,
   calculateLevel,
@@ -62,15 +62,16 @@ export const useStore = create<StoreState>()(
 
       addOlympiad: (data) => {
         const userId = get().user?.uid || 'local';
-        const percentage =
-          data.total > 0 ? Math.round((data.hits / data.total) * 1000) / 10 : 0;
-        const medal = calculateMedal(data.hits, data.cutoffs);
+        const percentage = data.total > 0 ? Math.round((data.hits / data.total) * 1000) / 10 : 0;
+        const medal = calculateMedal(data.hits, data.cutoffs, data.type);
+        const classified = calculateClassified(data.hits, data.cutoffs);
         const now = new Date().toISOString();
         const olympiad: Olympiad = {
           id: crypto.randomUUID(),
           ...data,
           percentage,
           medal,
+          classified,
           userId,
           createdAt: now,
           updatedAt: now,
@@ -94,13 +95,14 @@ export const useStore = create<StoreState>()(
         set((state) => ({
           olympiads: state.olympiads.map((o) => {
             if (o.id !== id) return o;
-            const updated = { ...o, ...data, updatedAt: new Date().toISOString() };
+            const type    = data.type    ?? o.type;
             const cutoffs = data.cutoffs ?? o.cutoffs;
-            const hits = data.hits ?? o.hits;
-            const total = data.total ?? o.total;
-            const percentage = total > 0 ? Math.round((hits / total) * 1000) / 10 : 0;
-            const medal = calculateMedal(hits, cutoffs);
-            return { ...updated, percentage, medal, cutoffs };
+            const hits    = data.hits    ?? o.hits;
+            const total   = data.total   ?? o.total;
+            const percentage  = total > 0 ? Math.round((hits / total) * 1000) / 10 : 0;
+            const medal       = calculateMedal(hits, cutoffs, type);
+            const classified  = calculateClassified(hits, cutoffs);
+            return { ...o, ...data, type, cutoffs, percentage, medal, classified, updatedAt: new Date().toISOString() };
           }),
         }));
       },
@@ -140,8 +142,8 @@ export const useStore = create<StoreState>()(
 
       getStats: () => {
         const { olympiads } = get();
+        const emptyLevel = 1;
         if (olympiads.length === 0) {
-          const level = 1;
           return {
             totalOlympiads: 0,
             averagePercentage: 0,
@@ -150,20 +152,34 @@ export const useStore = create<StoreState>()(
             medals: { gold: 0, silver: 0, bronze: 0, honor: 0, none: 0 },
             totalMedals: 0,
             xp: 0,
-            level,
-            xpForCurrentLevel: xpForLevel(level),
-            xpForNextLevel: xpForNextLevel(level),
+            level: emptyLevel,
+            xpForCurrentLevel: xpForLevel(emptyLevel),
+            xpForNextLevel: xpForNextLevel(emptyLevel),
+            classified: 0,
+            notClassified: 0,
           };
         }
 
         const percentages = olympiads.map((o) => o.percentage);
         const avg = percentages.reduce((a, b) => a + b, 0) / olympiads.length;
-        const medals = olympiads.reduce(
-          (acc, o) => ({ ...acc, [o.medal]: (acc[o.medal] || 0) + 1 }),
-          { gold: 0, silver: 0, bronze: 0, honor: 0, none: 0 } as Record<MedalType, number>
-        );
+
+        // Medalhas: apenas olimpíadas do tipo 'olimpiada'
+        const medals = olympiads
+          .filter((o) => o.type === 'olimpiada')
+          .reduce(
+            (acc, o) => ({ ...acc, [o.medal]: (acc[o.medal] || 0) + 1 }),
+            { gold: 0, silver: 0, bronze: 0, honor: 0, none: 0 } as Record<MedalType, number>
+          );
         const totalMedals = medals.gold + medals.silver + medals.bronze + medals.honor;
-        const xp = calculateXP(olympiads);
+
+        // Classificações: apenas classificatórias com corte definido
+        const classificatorias = olympiads.filter(
+          (o) => o.type === 'classificatoria' && o.classified !== undefined
+        );
+        const classified    = classificatorias.filter((o) => o.classified === true).length;
+        const notClassified = classificatorias.filter((o) => o.classified === false).length;
+
+        const xp    = calculateXP(olympiads);
         const level = calculateLevel(xp);
 
         return {
@@ -177,6 +193,8 @@ export const useStore = create<StoreState>()(
           level,
           xpForCurrentLevel: xpForLevel(level),
           xpForNextLevel: xpForNextLevel(level),
+          classified,
+          notClassified,
         };
       },
 
@@ -189,11 +207,7 @@ export const useStore = create<StoreState>()(
       name: 'olympic-dashboard-store',
       storage: createJSONStorage(() => {
         if (typeof window !== 'undefined') return localStorage;
-        return {
-          getItem: () => null,
-          setItem: () => {},
-          removeItem: () => {},
-        };
+        return { getItem: () => null, setItem: () => {}, removeItem: () => {} };
       }),
     }
   )

@@ -1,5 +1,7 @@
 export type MedalType = 'gold' | 'silver' | 'bronze' | 'honor' | 'none';
 
+export type OlympiadType = 'simulado' | 'olimpiada' | 'classificatoria';
+
 export interface Cutoffs {
   classification: number;
   honor: number;
@@ -12,10 +14,12 @@ export interface Olympiad {
   id: string;
   name: string;
   subject: string;
+  type: OlympiadType;
   hits: number;
   total: number;
   percentage: number;
   medal: MedalType;
+  classified?: boolean;
   cutoffs: Cutoffs;
   date: string;
   notes?: string;
@@ -57,6 +61,8 @@ export interface UserStats {
   level: number;
   xpForCurrentLevel: number;
   xpForNextLevel: number;
+  classified: number;
+  notClassified: number;
 }
 
 export interface PredictionData {
@@ -92,6 +98,7 @@ export interface User {
 export interface OlympiadFormData {
   name: string;
   subject: string;
+  type: OlympiadType;
   hits: number;
   total: number;
   date: string;

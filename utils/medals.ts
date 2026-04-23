@@ -1,12 +1,60 @@
-import { MedalType, Cutoffs } from '@/types';
+import { MedalType, Cutoffs, OlympiadType } from '@/types';
 
-export function calculateMedal(hits: number, cutoffs: Cutoffs): MedalType {
+// ─── Tipo de olimpíada ────────────────────────────────────────────────────────
+
+export const TYPE_CONFIG: Record<OlympiadType, {
+  label: string;
+  emoji: string;
+  description: string;
+  text: string;
+  bg: string;
+  border: string;
+}> = {
+  olimpiada: {
+    label: 'Olímpiada',
+    emoji: '🏆',
+    description: 'Valendo medalha',
+    text: 'text-violet-400',
+    bg: 'bg-violet-500/10',
+    border: 'border-violet-500/30',
+  },
+  classificatoria: {
+    label: 'Classificatória',
+    emoji: '📋',
+    description: 'Fase eliminatória / sem medalha',
+    text: 'text-cyan-400',
+    bg: 'bg-cyan-500/10',
+    border: 'border-cyan-500/30',
+  },
+  simulado: {
+    label: 'Simulado',
+    emoji: '📝',
+    description: 'Treino / prática',
+    text: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/30',
+  },
+};
+
+export function getTypeConfig(type: OlympiadType) {
+  return TYPE_CONFIG[type];
+}
+
+// ─── Medalhas ─────────────────────────────────────────────────────────────────
+
+export function calculateMedal(hits: number, cutoffs: Cutoffs, type: OlympiadType): MedalType {
+  if (type !== 'olimpiada') return 'none';
   if (!cutoffs || cutoffs.gold === 0) return 'none';
-  if (hits >= cutoffs.gold) return 'gold';
+  if (hits >= cutoffs.gold)   return 'gold';
   if (hits >= cutoffs.silver) return 'silver';
   if (hits >= cutoffs.bronze) return 'bronze';
-  if (hits >= cutoffs.honor) return 'honor';
+  if (hits >= cutoffs.honor)  return 'honor';
   return 'none';
+}
+
+export function calculateClassified(hits: number, cutoffs: Cutoffs): boolean | undefined {
+  if (!cutoffs || cutoffs.classification === 0) return undefined;
+  return hits >= cutoffs.classification;
 }
 
 export const MEDAL_CONFIG: Record<MedalType, {
@@ -69,48 +117,69 @@ export function getMedalConfig(medal: MedalType) {
   return MEDAL_CONFIG[medal];
 }
 
-export function getCutoffComparison(hits: number, cutoffs: Cutoffs) {
-  const comparisons: Array<{
-    medal: MedalType;
-    label: string;
-    target: number;
-    diff: number;
-    status: 'above' | 'near' | 'below';
-    color: string;
-  }> = [];
+// ─── Comparação com cortes ────────────────────────────────────────────────────
 
-  const targets: Array<{ medal: MedalType; label: string; target: number }> = [
-    { medal: 'gold', label: 'Ouro', target: cutoffs.gold },
-    { medal: 'silver', label: 'Prata', target: cutoffs.silver },
-    { medal: 'bronze', label: 'Bronze', target: cutoffs.bronze },
-    { medal: 'honor', label: 'Honra ao Mérito', target: cutoffs.honor },
-  ];
-
-  for (const { medal, label, target } of targets) {
-    if (target === 0) continue;
-    const diff = hits - target;
-    let status: 'above' | 'near' | 'below';
-    let color: string;
-
-    if (diff >= 0) {
-      status = 'above';
-      color = 'text-emerald-400';
-    } else if (Math.abs(diff) <= 3) {
-      status = 'near';
-      color = 'text-yellow-400';
-    } else {
-      status = 'below';
-      color = 'text-red-400';
-    }
-
-    comparisons.push({ medal, label, target, diff, status, color });
-  }
-
-  return comparisons;
+export interface CutoffRow {
+  key: string;
+  label: string;
+  emoji: string;
+  target: number;
+  diff: number;
+  status: 'above' | 'near' | 'below';
+  colorText: string;
+  colorBg: string;
+  colorBorder: string;
+  isClassification: boolean;
 }
 
-export function getComparisonMessage(diff: number, label: string): string {
-  if (diff >= 0) return `+${diff} acima do corte ${label}`;
-  if (diff === -1) return `faltou 1 questão para ${label}`;
-  return `faltou ${Math.abs(diff)} questões para ${label}`;
+export function getCutoffComparison(hits: number, cutoffs: Cutoffs): CutoffRow[] {
+  const rows: CutoffRow[] = [];
+
+  // Classificação — sempre primeiro, com destaque especial
+  if (cutoffs.classification > 0) {
+    const diff = hits - cutoffs.classification;
+    const status = diff >= 0 ? 'above' : Math.abs(diff) <= 3 ? 'near' : 'below';
+    rows.push({
+      key: 'classification',
+      label: 'Classificação',
+      emoji: '📋',
+      target: cutoffs.classification,
+      diff,
+      status,
+      colorText:   status === 'above' ? 'text-emerald-400' : status === 'near' ? 'text-yellow-400' : 'text-red-400',
+      colorBg:     status === 'above' ? 'bg-emerald-500/10' : status === 'near' ? 'bg-yellow-500/10' : 'bg-red-500/10',
+      colorBorder: status === 'above' ? 'border-emerald-500/25' : status === 'near' ? 'border-yellow-500/25' : 'border-red-500/25',
+      isClassification: true,
+    });
+  }
+
+  // Medalhas
+  const medals: Array<{ key: string; label: string; emoji: string; target: number }> = [
+    { key: 'gold',   label: 'Ouro',           emoji: '🥇', target: cutoffs.gold },
+    { key: 'silver', label: 'Prata',          emoji: '🥈', target: cutoffs.silver },
+    { key: 'bronze', label: 'Bronze',         emoji: '🥉', target: cutoffs.bronze },
+    { key: 'honor',  label: 'Honra ao Mérito',emoji: '🏅', target: cutoffs.honor },
+  ];
+
+  for (const { key, label, emoji, target } of medals) {
+    if (target === 0) continue;
+    const diff = hits - target;
+    const status = diff >= 0 ? 'above' : Math.abs(diff) <= 3 ? 'near' : 'below';
+    rows.push({
+      key, label, emoji, target, diff, status,
+      colorText:   status === 'above' ? 'text-emerald-400' : status === 'near' ? 'text-yellow-400' : 'text-gray-500',
+      colorBg:     status === 'above' ? 'bg-emerald-500/8' : status === 'near' ? 'bg-yellow-500/8' : 'bg-gray-800/30',
+      colorBorder: status === 'above' ? 'border-emerald-500/20' : status === 'near' ? 'border-yellow-500/20' : 'border-gray-700/30',
+      isClassification: false,
+    });
+  }
+
+  return rows;
+}
+
+export function getCutoffMessage(diff: number, label: string, isClassification = false): string {
+  const target = isClassification ? `para classificar` : `para ${label.toLowerCase()}`;
+  if (diff >= 0)  return `+${diff} acima do corte`;
+  if (diff === -1) return `faltou 1 questão ${target}`;
+  return `faltou ${Math.abs(diff)} questões ${target}`;
 }
