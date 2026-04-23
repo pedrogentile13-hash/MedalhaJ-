@@ -5,6 +5,7 @@ import { Olympiad, CalendarEvent, User } from '@/types';
 let firebaseApp: any = null;
 let firestoreDb: any = null;
 let firebaseAuth: any = null;
+let initPromise: Promise<void> | null = null; // singleton — evita race condition
 
 export function isFirebaseConfigured(): boolean {
   return !!(
@@ -13,26 +14,30 @@ export function isFirebaseConfigured(): boolean {
   );
 }
 
-export async function initFirebase() {
+export async function initFirebase(): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  if (firebaseApp) return;
+  if (initPromise) return initPromise; // reutiliza a mesma promise se já iniciada
 
-  const { initializeApp, getApps, getApp } = await import('firebase/app');
-  const { getFirestore } = await import('firebase/firestore');
-  const { getAuth } = await import('firebase/auth');
+  initPromise = (async () => {
+    const { initializeApp, getApps, getApp } = await import('firebase/app');
+    const { getFirestore } = await import('firebase/firestore');
+    const { getAuth } = await import('firebase/auth');
 
-  const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  };
+    const config = {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    };
 
-  firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  firestoreDb = getFirestore(firebaseApp);
-  firebaseAuth = getAuth(firebaseApp);
+    firebaseApp = getApps().length === 0 ? initializeApp(config) : getApp();
+    firestoreDb = getFirestore(firebaseApp);
+    firebaseAuth = getAuth(firebaseApp);
+  })();
+
+  return initPromise;
 }
 
 function mapUser(u: any): User {
@@ -48,7 +53,7 @@ function mapUser(u: any): User {
 
 export async function signInWithEmail(email: string, password: string): Promise<User> {
   await initFirebase();
-  if (!firebaseAuth) throw new Error('Firebase não configurado');
+  if (!firebaseAuth) throw Object.assign(new Error('Firebase não configurado'), { code: 'app/not-configured' });
   const { signInWithEmailAndPassword } = await import('firebase/auth');
   const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
   return mapUser(result.user);
@@ -60,7 +65,7 @@ export async function registerWithEmail(
   displayName: string
 ): Promise<User> {
   await initFirebase();
-  if (!firebaseAuth) throw new Error('Firebase não configurado');
+  if (!firebaseAuth) throw Object.assign(new Error('Firebase não configurado'), { code: 'app/not-configured' });
   const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
   const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);
   await updateProfile(result.user, { displayName });
@@ -69,7 +74,7 @@ export async function registerWithEmail(
 
 export async function sendPasswordReset(email: string): Promise<void> {
   await initFirebase();
-  if (!firebaseAuth) throw new Error('Firebase não configurado');
+  if (!firebaseAuth) throw Object.assign(new Error('Firebase não configurado'), { code: 'app/not-configured' });
   const { sendPasswordResetEmail } = await import('firebase/auth');
   await sendPasswordResetEmail(firebaseAuth, email);
 }
@@ -94,7 +99,9 @@ export async function signOut(): Promise<void> {
   await fbSignOut(firebaseAuth);
 }
 
-export async function onAuthChange(callback: (user: User | null) => void): Promise<() => void> {
+export async function onAuthChange(
+  callback: (user: User | null) => void
+): Promise<() => void> {
   await initFirebase();
   if (!firebaseAuth) {
     callback(null);
