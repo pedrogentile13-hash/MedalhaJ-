@@ -44,10 +44,10 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', duration: 0.3 }}
-            className={`relative w-full ${maxWidth} bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden`}
+            className={`relative w-full ${maxWidth} bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]`}
           >
             {title && (
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
                 <h2 className="text-lg font-semibold text-white">{title}</h2>
                 <button
                   onClick={onClose}
@@ -57,7 +57,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' 
                 </button>
               </div>
             )}
-            <div className="p-6">{children}</div>
+            <div className="p-6 overflow-y-auto flex-1">{children}</div>
           </motion.div>
         </div>
       )}
